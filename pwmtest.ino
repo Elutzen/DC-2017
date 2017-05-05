@@ -19,16 +19,16 @@ void setup() {
 void loop() {
   analogWrite(motorAn1, 120);
   analogWrite(motorAn2, 120);
-  delay(5000);
+  delay(2000);
   digitalWrite(motorDir2, HIGH);
   digitalWrite(motorDir1, LOW);
 
-  delay(5000);
+  delay(2000);
   digitalWrite(motorDir1, HIGH);
   digitalWrite(motorDir2, LOW);
-  delay(5000);
+  delay(2000);
   digitalWrite(motorDir1, LOW);
-  delay(5000);
+  delay(1000);
   while (1) {
     analogWrite(motorAn1, 0);
     analogWrite(motorAn2, 0);
