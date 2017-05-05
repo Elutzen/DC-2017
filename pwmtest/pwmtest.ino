@@ -1,15 +1,51 @@
+#include <string>
 #include <avr/io.h>
+#include <math.h>
+#include <stdio.h>
 //pin 38(digital) with pin 36 (pwm)
 #define MOTORDIR1 38
 #define MOTORSPD1 36
 #define MOTORDIR2 37 
-#define MOTORSPD 35
+#define MOTORSPD2 35
+#define XRAWLEN -1
+#define YRAWLEN -1
 
-//int MOTORDIR1 = 38;
-//int MOTORSPD1 = 36;
-////pin 37(digital) with pin 35 (pwm)
-//int MOTORDIR2 = 37;
-//int MOTORSPD2 = 35;
+void parseData(char *raw, int *x, int *y) {
+  
+  String allData(raw); 
+  float x;
+  float y;
+
+  String strX = allData.substring(0, allData.indexOf(' '));
+  String strY = allData.substring(allData.indexOf(' '));
+  x = strX.toFloat();
+  y = strY.toFloat();
+}
+
+int distance(int myX, int myY, int yourX, int yourY) {
+  return sqrt((myX-yourX)*(myX-yourX) + (myY-yourY)*(myY- yourY));
+}
+
+void changeSpd(int newSpd) {
+  analogWrite(MOTORSPD1, newSpd);
+  analogWrite(MOTORSPD2, newSpd);
+}
+
+void turnRight() {
+  digitalWrite(MOTORDIR1, LOW);
+  digitalWrite(MOTORDIR2, LOW);
+  changeSpd(255); 
+  delay(135);
+  changeSpd(0);
+}
+
+void turnLeft() {
+  digitalWrite(MOTORDIR1, HIGH);
+  digitalWrite(MOTORDIR2, HIGH);
+  changeSpd(255);
+  delay(135);
+  changeSpd(0);
+}
 
 void setup() {
   //PWM Pin Setup
@@ -22,22 +58,26 @@ void setup() {
 }
 
 void loop() {
-  analogWrite(MOTORSPD1, 120);
-  analogWrite(MOTORSPD2, 120);
-  delay(2000);
-  digitalWrite(MOTORDIR2, HIGH);
-  digitalWrite(MOTORDIR1, LOW);
 
-  delay(2000);
-  digitalWrite(MOTORDIR1, HIGH);
-  digitalWrite(MOTORDIR2, LOW);
-  delay(2000);
-  digitalWrite(MOTORDIR1, LOW);
-  delay(1000);
-  while (1) {
-    analogWrite(MOTORSPD1, 0);
-    analogWrite(MOTORSPD2, 0);
+
+//  int *x;
+//  int *y;
+//  parseData(some pin, &x, &y);
+
+  for(int i = 0; i < 4; i++) {
+    if (i < 2) {
+      turnRight();
+      delay(5000);
+    }
+    else {
+      turnLeft();
+      delay(5000);
+    }
   }
+  while (1) {
+    
+  }
+
 }
 
 
