@@ -20,6 +20,7 @@ void parseData(char *raw, int *x, int *y) {
   String strY = allData.substring(allData.indexOf(' '));
   x = strX.toFloat();
   y = strY.toFloat();
+  
 }
 
 int distance(int myX, int myY, int yourX, int yourY) {
