@@ -12,14 +12,14 @@
 
 void parseData(char *raw, int *x, int *y) {
   
-  String allData(raw); 
-  float x;
-  float y;
-
-  String strX = allData.substring(0, allData.indexOf(' '));
-  String strY = allData.substring(allData.indexOf(' '));
-  x = strX.toFloat();
-  y = strY.toFloat();
+//  String allData(raw); 
+////  float x;
+////  float y;
+//
+//  String strX = allData.substring(0, allData.indexOf(' '));
+//  String strY = allData.substring(allData.indexOf(' '));
+//  x = strX.toFloat();
+//  y = strY.toFloat();
   
 }
 
@@ -35,16 +35,16 @@ void changeSpd(int newSpd) {
 void turnRight() {
   digitalWrite(MOTORDIR1, LOW);
   digitalWrite(MOTORDIR2, LOW);
-  changeSpd(255); 
-  delay(135);
+  changeSpd(100); 
+  delay(345);
   changeSpd(0);
 }
 
 void turnLeft() {
   digitalWrite(MOTORDIR1, HIGH);
   digitalWrite(MOTORDIR2, HIGH);
-  changeSpd(255);
-  delay(135);
+  changeSpd(100);
+  delay(345);
   changeSpd(0);
 }
 
