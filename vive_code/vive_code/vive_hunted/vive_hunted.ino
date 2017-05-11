@@ -23,7 +23,7 @@
 #define XRAWLEN -1
 #define YRAWLEN -1
 
-#define TURNTHRESH 0.05
+#define TURNTHRESH 0.25
 
 // structure to store the sensor data
 typedef struct {
@@ -115,7 +115,7 @@ void faceYneg() {
     turnRight();
   }
   changeSpd(0);
-  faceForward();
+//  faceForward();
 }
 
 // variables for the xbee data
@@ -133,7 +133,7 @@ void turnRight() {
   changeSpd(0);
   digitalWrite(MOTORDIR1, LOW);
   digitalWrite(MOTORDIR2, LOW);
-  changeSpd(100);
+  changeSpd(50);
 
 
 }
@@ -142,7 +142,7 @@ void turnLeft() {
   changeSpd(0);
   digitalWrite(MOTORDIR1, HIGH);
   digitalWrite(MOTORDIR2, HIGH);
-  changeSpd(100);
+  changeSpd(50);
 
 }
 
@@ -191,6 +191,8 @@ void setup() {
   changeSpd(0);
 }
 
+int time = millis();
+
 void loop() {
   // see if the xbee has sent any data
   if (Serial4.available() > 0) {
@@ -214,10 +216,13 @@ void loop() {
       }
     }
   }
+if ((millis() % 1000) == 0) {
+  Serial.print(V1.useMe);
+  Serial.print(" ");
+  Serial.println(V2.useMe);
 
-//  Serial.print(V1.useMe);
-//  Serial.print(" ");
-//  Serial.println(V2.useMe);
+}
+
  
   // if the sensor data is new
   if (V1.useMe && V2.useMe) {
@@ -229,21 +234,21 @@ void loop() {
 
     // blink the led so you can tell if you are getting sensor data
 
-    faceYneg();
-    changeSpd(150);
-    delay(1000);
-    faceXneg();
-    changeSpd(150);
-    delay(1000);
-    faceYpos();
-    changeSpd(150);
-    delay(1000);
-    faceXpos();
-    changeSpd(150);
-    delay(1000);
-    while(1) {
-      changeSpd(0);
-    }
+   faceYneg();
+    // changeSpd(150);
+    // delay(1000);
+    // faceXneg();
+    // changeSpd(150);
+    // delay(1000);
+    // faceYpos();
+    // changeSpd(150);
+    // delay(1000);
+    // faceXpos();
+    // changeSpd(150);
+    // delay(1000);
+    // while(1) {
+    //   changeSpd(0);
+    // }
 
 
 
@@ -302,6 +307,12 @@ void ISRV2() {
     }
   }
 }
+
+
+
+
+
+
 
 
 
