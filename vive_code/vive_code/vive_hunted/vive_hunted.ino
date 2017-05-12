@@ -11,10 +11,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define V1PIN 24 // the signal from the sensor for back
-#define V2PIN 25 //the signal from the sensor for front
+#define V1PIN 25 // the signal from the sensor for back
+#define V2PIN 24 //the signal from the sensor for front
 #define DEG_PER_US 0.0216 // equal to (180 deg) / (8333 us)
-#define LIGHTHOUSEHEIGHT 4.0 // in feet
+#define LIGHTHOUSEHEIGHT 7.5 // in feet
 
 #define MOTORDIR1 38
 #define MOTORSPD1 36
@@ -23,7 +23,19 @@
 #define XRAWLEN -1
 #define YRAWLEN -1
 
-#define TURNTHRESH 0.05
+
+//bump sensor pin modes
+#define LEFTBUTTON 0
+#define MIDDLEBUTTON 1
+#define RIGHTBUTTON 2
+
+//margin of error between vive sensors
+#define TURNTHRESH 0.15
+#define FACINGTHRESH 0.25
+#define NODETHRESH 1
+
+#define TURNSPD 100
+#define DRIVESPD 200
 
 // structure to store the sensor data
 typedef struct {
@@ -41,6 +53,22 @@ int state = 0;
 double xPosB, yPosB, xPosF, yPosF;
 double xOldB = 0, yOldB = 0, xFiltB = 0, yFiltB = 0, xOldF = 0, yOldF = 0, xFiltF = 0, yFiltF = 0;
 
+int leftInterruptEvenCheck = 1;
+int rightInterruptEvenCheck = 1;
+int middleInterruptEvenCheck = 1;
+
+float nodes[4][2] = {{4.2, 3.8},
+                    {4.5, -5.9},
+                    {-6.3, -6.3},
+                    {-6.3, 4.0}};
+
+int currNode = -1;
+
+
+
+
+
+
 void computePosnFromRaw() {
   // calculate the position and filter it
 
@@ -51,10 +79,10 @@ void computePosnFromRaw() {
     yFiltB = yOldB * 0.5 + yPosB * 0.5;
     xOldB = xFiltB;
     yOldB = yFiltB;
-    Serial.print("back sensor: ");
-    Serial.print(xFiltB);
-    Serial.print(" ");
-    Serial.println(yFiltB);
+//    Serial.print("back sensor: ");
+//    Serial.print(xFiltB);
+//    Serial.print(" ");
+//    Serial.println(yFiltB);
 
     //front sensor
     xPosF = tan((V2.vertAng - 90.0) * DEG_TO_RAD) * LIGHTHOUSEHEIGHT;
@@ -63,13 +91,24 @@ void computePosnFromRaw() {
     yFiltF = yOldF * 0.5 + yPosF * 0.5;
     xOldF = xFiltF;
     yOldF = yFiltF;
-    Serial.print("front sensor: ");
-    Serial.print(xFiltF);
-    Serial.print(" ");
-    Serial.println(yFiltF); 
+//    Serial.print("front sensor: ");
+//    Serial.print(xFiltF);
+//    Serial.print(" ");
+//    Serial.println(yFiltF); 
 
 }
 
+int whereAmI() {
+  int j = 0;
+  for(int i = 0; i < 4; i++) {
+      computePosnFromRaw();
+      if ((xFiltF < nodes[i][j] + NODETHRESH && xFiltF > nodes[i][j] - NODETHRESH) && (yFiltF < nodes[i][j+1] + NODETHRESH && yFiltF > nodes[i][j+1] - NODETHRESH)) {
+        currNode = i;
+        return i;
+      }
+  }
+  return -1;
+}
 
 void blinkLED() {
   digitalWrite(13, state);
@@ -83,8 +122,13 @@ void blinkLED() {
 
 void faceXpos() {
     while ((yFiltB > yFiltF + TURNTHRESH || yFiltB < yFiltF - TURNTHRESH) || xFiltF < xFiltB) {
+      if (yFiltB > yFiltF) {
+        turnLeft();
+      }
+      else {
+        turnRight();
+      }
       computePosnFromRaw();
-      turnRight();
     }
     changeSpd(0);
     faceForward();
@@ -93,8 +137,13 @@ void faceXpos() {
 
 void faceXneg() {
   while ((yFiltB > yFiltF + TURNTHRESH || yFiltB < yFiltF - TURNTHRESH) || xFiltF > xFiltB) {
+    if (yFiltB > yFiltF) {
+      turnRight();
+    }
+    else {
+      turnLeft();
+    }
     computePosnFromRaw();
-    turnRight();
   }
   changeSpd(0);
   faceForward();
@@ -102,8 +151,13 @@ void faceXneg() {
 
 void faceYpos() {
   while ((xFiltB > xFiltF + TURNTHRESH || xFiltB < xFiltF - TURNTHRESH) || yFiltF < yFiltB) {
+    if (xFiltB > xFiltF) {
+      turnRight();
+    }
+    else {
+      turnLeft();
+    }
     computePosnFromRaw();
-    turnRight();
   }
   changeSpd(0);
   faceForward();
@@ -111,11 +165,100 @@ void faceYpos() {
 
 void faceYneg() {
   while ((xFiltB > xFiltF + TURNTHRESH || xFiltB < xFiltF - TURNTHRESH) || yFiltF > yFiltB) {
+    if (xFiltB > xFiltF) {
+      turnLeft();
+    }
+    else {
+      turnRight();  
+    }
     computePosnFromRaw();
-    turnRight();
   }
   changeSpd(0);
   faceForward();
+}
+
+bool facingXneg() {
+  if(!((yFiltB > yFiltF + FACINGTHRESH || yFiltB < yFiltF - FACINGTHRESH) || xFiltF > xFiltB)) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool facingXpos() {
+  if (!((yFiltB > yFiltF + FACINGTHRESH || yFiltB < yFiltF - FACINGTHRESH) || xFiltF < xFiltB)) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool facingYpos() {
+  if (!((xFiltB > xFiltF + FACINGTHRESH || xFiltB < xFiltF - FACINGTHRESH) || yFiltF < yFiltB)) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool facingYneg() {
+  if (!((xFiltB > xFiltF + FACINGTHRESH || xFiltB < xFiltF - FACINGTHRESH ) || yFiltF > yFiltB)) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+void driveUntil(char variableCoord, char someOperator, float desiredCoord) {
+  faceForward();
+  if (variableCoord == 'x') {
+    if (someOperator == '<') {
+      while (xFiltF > desiredCoord) {
+        changeSpd(DRIVESPD);
+        if(!facingXneg()){
+          faceXneg();
+        }
+        computePosnFromRaw();
+      }
+    }
+    else if (someOperator == '>') {
+      while (xFiltF < desiredCoord) {
+        changeSpd(DRIVESPD);
+        if (!facingXpos()) {
+          faceXpos();
+        }
+        computePosnFromRaw();
+      }
+    }
+  }
+  else if (variableCoord == 'y') {
+    if (someOperator == '<') {
+      while (yFiltF > desiredCoord) {
+        changeSpd(DRIVESPD);
+        if(!facingYneg()){
+          faceYneg();
+        }
+        computePosnFromRaw();
+      }
+    }
+    else if (someOperator == '>') {
+      while (yFiltF < desiredCoord) {
+        changeSpd(DRIVESPD);
+        if(!facingYpos()){
+          faceYpos();
+        }
+        computePosnFromRaw();
+      }
+    }
+  }
+  delay(100);
+
+  changeSpd(0);
+
 }
 
 // variables for the xbee data
@@ -125,15 +268,22 @@ float xOpponent, yOpponent;
 
 
 void changeSpd(int newSpd) {
-  analogWrite(MOTORSPD1, newSpd);
-  analogWrite(MOTORSPD2, newSpd);
+  if (newSpd == 0) {
+    analogWrite(MOTORSPD1, newSpd);
+    analogWrite(MOTORSPD2, newSpd);
+  }
+  else {
+    analogWrite(MOTORSPD1, newSpd);
+    analogWrite(MOTORSPD2, newSpd + 10);
+  }
+
 }
 
 void turnRight() {
   changeSpd(0);
   digitalWrite(MOTORDIR1, LOW);
   digitalWrite(MOTORDIR2, LOW);
-  changeSpd(100);
+  changeSpd(TURNSPD);
 
 
 }
@@ -142,17 +292,119 @@ void turnLeft() {
   changeSpd(0);
   digitalWrite(MOTORDIR1, HIGH);
   digitalWrite(MOTORDIR2, HIGH);
-  changeSpd(100);
+  changeSpd(TURNSPD);
 
 }
 
+
+
 void faceForward() {
+  digitalWrite(MOTORDIR1, HIGH);
+  digitalWrite(MOTORDIR2, LOW);
+}
+
+void faceBackward() {
   digitalWrite(MOTORDIR1, LOW);
   digitalWrite(MOTORDIR2, HIGH);
 }
 
+void gotoNode(int node) {
+  switch(node) {
+    case 0:
+      if (currNode == 1) {
+        faceYpos();
+        driveUntil('y', '>', nodes[0][1]);
+      }
+      else {
+        faceXpos();
+        driveUntil('x','>',nodes[0][0]);
+      }
+      break;
+    case 1:
+      if (currNode == 0) {
+        faceYneg();
+        driveUntil('y','<', nodes[1][1]);
+      }
+      else {
+        faceXpos();
+        driveUntil('x','>', nodes[1][0]);
+      }
+      break;
+    case 2:
+      if (currNode == 1) {
+        faceXneg();
+        driveUntil('x', '<', nodes[2][0]);
+      }
+      else {
+        faceYneg();
+        driveUntil('y','<',nodes[2][1]);
+      }
+      break;
+    case 3:
+      if (currNode == 0) {
+        faceXneg();
+        driveUntil('x', '<', nodes[3][0]);
+      }
+      else {
+        faceYpos();
+        driveUntil('y','>',nodes[3][1]);
+      }
+      break;
+  }
+
+}
+
 float distance(float myX, float myY, float yourX, float yourY) {
   return sqrt((myX-yourX)*(myX-yourX) + (myY-yourY)*(myY-yourY));
+}
+
+void flee() {
+  whereAmI();
+  float node0Dist = distance(nodes[0][0], nodes[0][1], xOpponent, yOpponent);
+  float node1Dist = distance(nodes[1][0], nodes[1][1], xOpponent, yOpponent);
+  float node2Dist = distance(nodes[2][0], nodes[2][1], xOpponent, yOpponent);
+  float node3Dist = distance(nodes[3][0], nodes[3][1], xOpponent, yOpponent);
+
+  switch(currNode) {
+    case 0:
+      if (node1Dist > node3Dist) {
+        gotoNode(1);
+      }
+      else {
+        gotoNode(3);
+      }
+      break;
+    case 1:
+      if (node2Dist > node0Dist) {
+        //go to node 2
+        gotoNode(2);
+      }
+      else {
+        //go to node 0
+        gotoNode(0);
+      }
+      break;
+    case 2:
+      if (node1Dist > node3Dist) {
+        //go to node 3
+        gotoNode(1);
+      }
+      else {
+        //go to node 1
+        gotoNode(3);
+      }
+      break;
+    case 3:
+      if (node0Dist > node2Dist) {
+        //go to node 0
+        gotoNode(0);
+      }
+      else {
+        //go to node 2
+        gotoNode(2);
+      }
+      break;
+  }
 }
 
 
@@ -186,10 +438,21 @@ void setup() {
   pinMode(MOTORDIR1, OUTPUT);
   pinMode(MOTORSPD1, OUTPUT);
   pinMode(MOTORSPD2, OUTPUT);
-  digitalWrite(MOTORDIR1, LOW);
-  digitalWrite(MOTORDIR2, HIGH);
+  digitalWrite(MOTORDIR1, HIGH);
+  digitalWrite(MOTORDIR2, LOW);
   changeSpd(0);
+
+  //setting up audio stuff
+  pinMode(0, INPUT_PULLUP);
+  pinMode(1, INPUT_PULLUP);
+  pinMode(2, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(LEFTBUTTON), leftInterrupt, LOW);
+  attachInterrupt(digitalPinToInterrupt(MIDDLEBUTTON), middleInterrupt, LOW);
+  attachInterrupt(digitalPinToInterrupt(RIGHTBUTTON), rightInterrupt, LOW);
 }
+
+int time = millis();
 
 void loop() {
   // see if the xbee has sent any data
@@ -201,10 +464,10 @@ void loop() {
       // data is in the format of two floats seperated by spaces
       sscanf(msg, "%f %f", &xOpponent, &yOpponent);
 
-      Serial.print("op: ");
-      Serial.print(xOpponent);
-      Serial.print(" ");
-      Serial.println(yOpponent);
+//      Serial.print("op: ");
+//      Serial.print(xOpponent);
+//      Serial.print(" ");
+//      Serial.println(yOpponent);
     }
     else {
       // did not get a newline yet, just store for later
@@ -214,10 +477,12 @@ void loop() {
       }
     }
   }
+// if ((millis() % 1000) == 0) {
+//   Serial.print(V1.useMe);
+//   Serial.print(" ");
+//   Serial.println(V2.useMe);
 
-//  Serial.print(V1.useMe);
-//  Serial.print(" ");
-//  Serial.println(V2.useMe);
+// }
  
   // if the sensor data is new
   if (V1.useMe && V2.useMe) {
@@ -225,30 +490,18 @@ void loop() {
     V2.useMe = 0;
 
     computePosnFromRaw();
-    blinkLED();
-
     // blink the led so you can tell if you are getting sensor data
+    blinkLED();
+    float dist = distance(xFiltF, yFiltF, xOpponent, yOpponent);
+    Serial.println(dist);
 
-    faceYneg();
-    changeSpd(150);
-    delay(1000);
-    faceXneg();
-    changeSpd(150);
-    delay(1000);
-    faceYpos();
-    changeSpd(150);
-    delay(1000);
-    faceXpos();
-    changeSpd(150);
-    delay(1000);
-    while(1) {
-      changeSpd(0);
-    }
-
-
-
-    
-        
+    // Serial.println(whereAmI());
+//    if (dist < 5.5) {
+//      flee();
+//    }
+    faceForward();
+    changeSpd(DRIVESPD);
+       
   }
 }
 
@@ -302,6 +555,76 @@ void ISRV2() {
     }
   }
 }
+
+void leftInterrupt() {
+  // Serial.println(leftInterruptEvenCheck);
+ delay(10);
+ if (digitalRead(LEFTBUTTON) == LOW) {
+    leftInterruptEvenCheck++;
+    if (leftInterruptEvenCheck % 2 != 0) {  
+      faceBackward();
+      changeSpd(150);
+      delay(350);
+      turnRight();
+      delay(150);
+      faceForward();
+      delay(250);
+      changeSpd(0);
+
+    }
+
+ }
+
+
+}
+
+
+void rightInterrupt() {
+  // Serial.println(leftInterruptEvenCheck);
+ delay(10);
+ if (digitalRead(RIGHTBUTTON) == LOW) {
+    rightInterruptEvenCheck++;
+    if (rightInterruptEvenCheck % 2 != 0) {  
+        faceBackward();
+        changeSpd(150);
+        delay(350);
+        turnLeft();
+        delay(150);
+        faceForward();
+        delay(250);
+        changeSpd(0);
+
+    }   
+ }
+
+
+}
+
+void middleInterrupt() {
+ delay(10);
+ if (digitalRead(MIDDLEBUTTON) == LOW) {
+    middleInterruptEvenCheck++;
+    if (middleInterruptEvenCheck % 2 != 0) {
+      faceBackward();
+      changeSpd(150);
+      delay(500);
+      turnRight();
+      delay(1000);
+      changeSpd(0);
+    }
+ }
+
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
