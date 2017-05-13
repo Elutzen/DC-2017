@@ -31,7 +31,7 @@
 
 //margin of error between vive sensors
 #define TURNTHRESH 0.15
-#define FACINGTHRESH 0.25
+#define FACINGTHRESH 0.30
 #define NODETHRESH 1
 
 #define TURNSPD 100
@@ -57,17 +57,46 @@ int leftInterruptEvenCheck = 1;
 int rightInterruptEvenCheck = 1;
 int middleInterruptEvenCheck = 1;
 
-float nodes[4][2] = {{4.2, 3.8},
-                    {4.5, -5.9},
-                    {-6.3, -6.3},
-                    {-6.3, 4.0}};
+float nodes[4][2] = {{3.9, 4.5},
+                    {4.5, -5.7},
+                    {-6.1, -6.6},
+                    {-6.5, 4.1}};
 
 int currNode = -1;
 
 
 
 
+float distance(float myX, float myY, float yourX, float yourY);
+void computePosnFromRaw();
+void blinkLED();
 
+//turn to face some direction functions
+void faceForward();
+void faceBackward();
+void faceXpos();
+void faceXneg();
+void faceYpos();
+void faceYneg();
+
+//checks to see where we're facing
+bool facingXpos();
+bool facingXneg();
+bool facingYpos();
+bool facingYneg();
+
+void driveUntil(char variableCoord, char someOperator, float desiredCoord);
+void turnLeft();
+void turnRight();
+void changeSpd(int newSpd);
+
+//node functions
+void gotoNode(int node);
+void returnToNode();
+int whereAmI();
+
+//run away from enemy
+void flee();
 
 void computePosnFromRaw() {
   // calculate the position and filter it
@@ -274,7 +303,7 @@ void changeSpd(int newSpd) {
   }
   else {
     analogWrite(MOTORSPD1, newSpd);
-    analogWrite(MOTORSPD2, newSpd + 10);
+    analogWrite(MOTORSPD2, newSpd + 16);
   }
 
 }
@@ -306,6 +335,65 @@ void faceForward() {
 void faceBackward() {
   digitalWrite(MOTORDIR1, LOW);
   digitalWrite(MOTORDIR2, HIGH);
+}
+
+
+void returnToNode() {
+  float bestNodeDist = 20;
+  int bestNode = -1;
+    float nodeDists[4] = {distance(nodes[0][0], nodes[0][1], xFiltF, yFiltF), distance(nodes[1][0], nodes[1][1], xFiltF, yFiltF),
+                  distance(nodes[2][0], nodes[2][1], xFiltF, yFiltF), distance(nodes[3][0], nodes[3][1], xFiltF, yFiltF)};
+
+    for (int i = 0; i < 4; i++) {
+      if (nodeDists[i] < bestNodeDist) {
+        bestNodeDist = nodeDists[i];
+        bestNode = i;
+      }
+    }
+
+    Serial.print("bestNode is ");
+    Serial.println(bestNode);
+
+    if (abs(xFiltF - nodes[bestNode][0]) > abs(yFiltF - nodes[bestNode][1])) {
+      switch(bestNode){
+        case 0:
+          driveUntil('x','>',nodes[bestNode][0]);
+          driveUntil('y','>',nodes[bestNode][1]);
+        break;
+        case 1:
+          driveUntil('x','>',nodes[bestNode][0]);
+          driveUntil('y','<',nodes[bestNode][1]);
+        break;
+        case 2:
+          driveUntil('x','<',nodes[bestNode][0]);
+          driveUntil('y','<',nodes[bestNode][1]);
+        break;
+        case 3:
+          driveUntil('x','<',nodes[bestNode][0]);
+          driveUntil('y','>',nodes[bestNode][1]);
+        break;
+      }
+    }
+    else {
+    switch(bestNode){
+        case 0:
+          driveUntil('y','>',nodes[bestNode][1]);
+          driveUntil('x','>',nodes[bestNode][0]);
+        break;
+        case 1:
+          driveUntil('y','<',nodes[bestNode][1]);
+          driveUntil('x','>',nodes[bestNode][0]);
+        break;
+        case 2:
+          driveUntil('y','<',nodes[bestNode][1]);
+          driveUntil('x','<',nodes[bestNode][0]);
+        break;
+        case 3:
+          driveUntil('y','>',nodes[bestNode][1]);
+          driveUntil('x','<',nodes[bestNode][0]);
+        break;  
+    }
+  }
 }
 
 void gotoNode(int node) {
@@ -354,8 +442,16 @@ void gotoNode(int node) {
 
 }
 
+
+
 float distance(float myX, float myY, float yourX, float yourY) {
   return sqrt((myX-yourX)*(myX-yourX) + (myY-yourY)*(myY-yourY));
+}
+
+void conditionalNodeJump(bool randomDoubleJump, int desiredNode) {
+  if (randomDoubleJump) {
+    gotoNode(desiredNode);
+  }
 }
 
 void flee() {
@@ -364,6 +460,10 @@ void flee() {
   float node1Dist = distance(nodes[1][0], nodes[1][1], xOpponent, yOpponent);
   float node2Dist = distance(nodes[2][0], nodes[2][1], xOpponent, yOpponent);
   float node3Dist = distance(nodes[3][0], nodes[3][1], xOpponent, yOpponent);
+//  bool randomDoubleJump = false;
+//  if (random(1, 10) > 8) {
+//    randomDoubleJump = true;
+//  }
 
   switch(currNode) {
     case 0:
@@ -373,6 +473,7 @@ void flee() {
       else {
         gotoNode(3);
       }
+      // conditionalNodeJump(randomDoubleJump, 2);
       break;
     case 1:
       if (node2Dist > node0Dist) {
@@ -383,6 +484,7 @@ void flee() {
         //go to node 0
         gotoNode(0);
       }
+      // conditionalNodeJump(randomDoubleJump, 2);
       break;
     case 2:
       if (node1Dist > node3Dist) {
@@ -393,6 +495,7 @@ void flee() {
         //go to node 1
         gotoNode(3);
       }
+      // conditionalNodeJump(randomDoubleJump, 2);
       break;
     case 3:
       if (node0Dist > node2Dist) {
@@ -403,6 +506,7 @@ void flee() {
         //go to node 2
         gotoNode(2);
       }
+      // conditionalNodeJump(randomDoubleJump, 2);
       break;
   }
 }
@@ -452,10 +556,11 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(RIGHTBUTTON), rightInterrupt, LOW);
 }
 
-int time = millis();
+int doNothingCounter = 0;
 
 void loop() {
   // see if the xbee has sent any data
+//        Serial.println(Serial4.available());
   if (Serial4.available() > 0) {
     msg[msg_index] = Serial4.read();
     // if you get a newline, there is data to read
@@ -463,13 +568,14 @@ void loop() {
       msg_index = 0;
       // data is in the format of two floats seperated by spaces
       sscanf(msg, "%f %f", &xOpponent, &yOpponent);
-
+//
 //      Serial.print("op: ");
 //      Serial.print(xOpponent);
 //      Serial.print(" ");
 //      Serial.println(yOpponent);
     }
     else {
+
       // did not get a newline yet, just store for later
       msg_index++;
       if (msg_index == 100) {
@@ -477,12 +583,7 @@ void loop() {
       }
     }
   }
-// if ((millis() % 1000) == 0) {
-//   Serial.print(V1.useMe);
-//   Serial.print(" ");
-//   Serial.println(V2.useMe);
 
-// }
  
   // if the sensor data is new
   if (V1.useMe && V2.useMe) {
@@ -492,17 +593,45 @@ void loop() {
     computePosnFromRaw();
     // blink the led so you can tell if you are getting sensor data
     blinkLED();
+    
     float dist = distance(xFiltF, yFiltF, xOpponent, yOpponent);
-    Serial.println(dist);
+   if (whereAmI() == -1) {
+     returnToNode();
+   }
 
-    // Serial.println(whereAmI());
-//    if (dist < 5.5) {
-//      flee();
-//    }
-    faceForward();
-    changeSpd(DRIVESPD);
-       
+//    Serial.print(xFiltF);
+//    
+//   Serial.print(" ");
+//   Serial.println(yFiltF);
+//   Serial.print(xOpponent);
+//   Serial.print(" ");
+//   Serial.println(yOpponent);
+//       Serial.println(dist);
+
+
+
+
+//     Serial.println(whereAmI());
+    if (dist < 5.5) {
+      Serial.println("calling flee");
+      flee();
+    }
+//    faceForward();
+//    changeSpd(DRIVESPD);
+
+       doNothingCounter = 0;
   }
+  else {
+    doNothingCounter++;
+    if (doNothingCounter > 200000) {
+      faceForward();
+      changeSpd(DRIVESPD);
+      delay(500);
+      changeSpd(0);
+      doNothingCounter = 0;
+    }
+  }
+  
 }
 
 // the sensor interrupt
@@ -566,9 +695,9 @@ void leftInterrupt() {
       changeSpd(150);
       delay(350);
       turnRight();
-      delay(150);
-      faceForward();
       delay(250);
+      faceForward();
+      delay(500);
       changeSpd(0);
 
     }
@@ -589,9 +718,9 @@ void rightInterrupt() {
         changeSpd(150);
         delay(350);
         turnLeft();
-        delay(150);
-        faceForward();
         delay(250);
+        faceForward();
+        delay(500);
         changeSpd(0);
 
     }   
@@ -609,12 +738,22 @@ void middleInterrupt() {
       changeSpd(150);
       delay(500);
       turnRight();
-      delay(1000);
+      delay(500);
+      faceForward();
+      delay(300);
       changeSpd(0);
     }
  }
 
 }
+
+
+
+
+
+
+
+
 
 
 
